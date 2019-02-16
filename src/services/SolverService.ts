@@ -2,14 +2,6 @@ import wordlist from '../assets/words.json';
 
 type IBoard = string[][];
 
-interface IResult {
-  word: string;
-  path: Array<{
-    x: number;
-    y: number;
-  }>;
-}
-
 function organizeWordsByFirstLetter(words: string[]) {
   const groups: {
     [letter: string]: string[];
@@ -18,7 +10,7 @@ function organizeWordsByFirstLetter(words: string[]) {
   for (const word of words) {
     const firstLetter = word[0];
 
-    if (!/^[a-z]$/.test(firstLetter)) {
+    if (!/^[a-zäöå]$/.test(firstLetter)) {
       continue;
     }
 
@@ -32,39 +24,50 @@ function organizeWordsByFirstLetter(words: string[]) {
   return groups;
 }
 
+export interface ICoordinate {
+  x: number;
+  y: number;
+}
+
+export interface IResult {
+  path: ICoordinate[];
+  word: string;
+}
+
 function findWords(
+  foundWordsReference: IResult[],
   board: IBoard,
   words: string[],
   y: number,
   x: number,
   currentWord: string = '',
-  usedCoordinates: Array<[number, number]> = [],
-  foundWords: any[]
-): any[] | void {
+  usedCoordinates: ICoordinate[] = []
+) {
   const stringToTest = currentWord + board[y][x];
 
   if (!words.length || stringToTest.length > 10) {
-    console.log(foundWords);
-
-    return foundWords;
+    return;
   }
 
   const possibleWords = words.filter(word => word.startsWith(stringToTest));
-  const coordinates: Array<[number, number]> = [...usedCoordinates, [y, x]];
+  const coordinates: Array<{ x: number; y: number }> = [
+    ...usedCoordinates,
+    { y, x }
+  ];
 
   const locationOfWord = words.indexOf(stringToTest);
 
   if (locationOfWord > -1) {
     delete words[locationOfWord];
 
-    foundWords.push({
+    foundWordsReference.push({
       path: coordinates,
       word: stringToTest
     });
   }
 
   const isUsedCoordinate = (yy: number, xx: number) =>
-    coordinates.some(numbers => numbers[0] === yy && numbers[1] === xx);
+    coordinates.some(numbers => numbers.y === yy && numbers.x === xx);
 
   const doesRightExist = x + 1 <= 3;
   const isRightPossible = doesRightExist && !isUsedCoordinate(y, x + 1);
@@ -89,97 +92,97 @@ function findWords(
 
   if (isRightPossible) {
     findWords(
+      foundWordsReference,
       board,
       possibleWords,
       y,
       x + 1,
       stringToTest,
-      coordinates,
-      foundWords
+      coordinates
     );
   }
 
   if (isLeftPossible) {
     findWords(
+      foundWordsReference,
       board,
       possibleWords,
       y,
       x - 1,
       stringToTest,
-      coordinates,
-      foundWords
+      coordinates
     );
   }
 
   if (isDownPossible) {
     findWords(
+      foundWordsReference,
       board,
       possibleWords,
       y + 1,
       x,
       stringToTest,
-      coordinates,
-      foundWords
+      coordinates
     );
   }
 
   if (isUpPossible) {
     findWords(
+      foundWordsReference,
       board,
       possibleWords,
       y - 1,
       x,
       stringToTest,
-      coordinates,
-      foundWords
+      coordinates
     );
   }
 
   if (isUpRightPossible) {
     findWords(
+      foundWordsReference,
       board,
       possibleWords,
       y - 1,
       x + 1,
       stringToTest,
-      coordinates,
-      foundWords
+      coordinates
     );
   }
 
   if (isUpLeftPossible) {
     findWords(
+      foundWordsReference,
       board,
       possibleWords,
       y - 1,
       x - 1,
       stringToTest,
-      coordinates,
-      foundWords
+      coordinates
     );
   }
 
   if (isDownRightPossible) {
     findWords(
+      foundWordsReference,
       board,
       possibleWords,
       y + 1,
       x + 1,
       stringToTest,
-      coordinates,
-      foundWords
+      coordinates
     );
   }
 
   if (isDownLeftPossible) {
     findWords(
+      foundWordsReference,
       board,
       possibleWords,
       y + 1,
       x - 1,
       stringToTest,
-      coordinates,
-      foundWords
+      coordinates
     );
   }
 }
@@ -187,23 +190,19 @@ function findWords(
 export function solveForBoard(board: IBoard) {
   const wordsOrganizedByFirstLetter = organizeWordsByFirstLetter(wordlist);
 
-  const foundWords = [];
+  const foundWords: IResult[] = [];
 
   for (const y of Object.keys(board)) {
     for (const x of Object.keys(board[Number(y)])) {
       const letter = board[Number(y)][Number(x)];
 
-      const words = findWords(
+      findWords(
+        foundWords,
         board,
         wordsOrganizedByFirstLetter[letter.toLocaleLowerCase()],
         Number(y),
-        Number(x),
-        undefined,
-        undefined,
-        []
+        Number(x)
       );
-
-      foundWords.push(words);
     }
   }
 

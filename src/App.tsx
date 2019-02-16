@@ -1,6 +1,12 @@
 import styled from '@emotion/styled/macro';
+import groupBy from 'lodash/groupBy';
 import React, { Component } from 'react';
 import * as SolverService from './services/SolverService';
+
+const convertNumberToXY = (i: number) => ({
+  x: i % 4,
+  y: Math.floor(i / 4)
+});
 
 const Results = styled.div`
   padding: 2rem;
@@ -15,17 +21,23 @@ const Results = styled.div`
   }
 
   ul {
+    cursor: pointer;
     list-style: none;
     padding: 0;
 
     li {
       padding: 0.25rem 0rem;
+
+      ul {
+        padding-top: 0.25rem;
+        padding-left: 0.5rem;
+      }
     }
   }
 `;
 
 const Container = styled.div`
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
 `;
 
@@ -36,27 +48,43 @@ const Box = styled.div`
   grid-gap: 0.5rem;
   padding: 1rem;
   border-radius: 0.5rem;
+`;
 
-  input {
-    border: 1px solid rgba(0, 0, 0, 0.15);
-    text-align: center;
-    font-size: 2rem;
-    color: #838383;
-    border-radius: 0.25rem;
-    font-family: monospace;
+interface IInputProps {
+  highlighted: boolean;
+}
 
-    &:focus {
-      outline-color: #ddd;
-    }
+const Input = styled.input<IInputProps>`
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  text-align: center;
+  font-size: 2rem;
+  color: #838383;
+  border-radius: 0.25rem;
+  font-family: monospace;
+
+  &:focus {
+    outline-color: #ddd;
   }
+
+  ${props =>
+    props.highlighted &&
+    `
+    background: rgba(0, 0, 0, 0.1);  
+  `}
 `;
 
 interface IAppState {
   values: string[];
+  results: SolverService.IResult[];
+  openedWords: string[];
+  highlightedPath: SolverService.ICoordinate[];
 }
 
 class App extends Component<{}, IAppState> {
   public state: IAppState = {
+    highlightedPath: [],
+    openedWords: [],
+    results: [],
     values: [...Array(4 * 4)].map(() => '')
   };
 
@@ -65,28 +93,54 @@ class App extends Component<{}, IAppState> {
   ].map(() => React.createRef());
 
   public render() {
-    const { values } = this.state;
+    const { highlightedPath, openedWords, results, values } = this.state;
+
+    const groupedResults = groupBy(results, 'word');
+    const words = Object.keys(groupedResults).sort((a, b) => {
+      return b.length - a.length;
+    });
 
     return (
       <Container>
         <Results>
-          <b>6 löydettyä sanaa</b>
+          <b>{words.length} löydettyä sanaa</b>
           <ul>
-            <li>kek</li>
-            <li>jees</li>
-            <li>jeesus</li>
-            <li>jeesustelija</li>
-            <li>jeesustelijoita</li>
+            {words.map((word, i) => (
+              <li key={`${i}_${word}`} onClick={this.toggleWord(word)}>
+                {word}
+
+                {openedWords.includes(word) && (
+                  <ul>
+                    {groupedResults[word].map((result, path) => (
+                      <li
+                        key={`${i}_${word}_${path}`}
+                        onClick={this.highlightPath(result.path)}
+                      >
+                        {result.word}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
           </ul>
         </Results>
         <Box>
           {this.inputRefs.map((ref, i) => (
-            <input
+            <Input
               ref={ref}
               type="text"
               key={i}
               onChange={this.onChange(i)}
               value={values[i]}
+              highlighted={highlightedPath.some(coordinate => {
+                const coordinates = convertNumberToXY(i);
+
+                return (
+                  coordinates.x === coordinate.x &&
+                  coordinates.y === coordinate.y
+                );
+              })}
             />
           ))}
         </Box>
@@ -94,13 +148,34 @@ class App extends Component<{}, IAppState> {
     );
   }
 
+  private toggleWord = (word: string) => () => {
+    const { openedWords } = this.state;
+
+    if (openedWords.includes(word)) {
+      this.setState({
+        openedWords: openedWords.filter(openedWord => openedWord !== word)
+      });
+    } else {
+      this.setState({
+        openedWords: [...openedWords, word]
+      });
+    }
+  };
+
+  private highlightPath = (path: SolverService.ICoordinate[]) => () => {
+    this.setState({ highlightedPath: path });
+  };
+
   private solveBoard = () => {
     const { values } = this.state;
 
     const board = SolverService.convertFlatBoardTo2D(
       SolverService.lowerCaseFlatBoard(values)
     );
-    console.log(SolverService.solveForBoard(board));
+
+    this.setState({
+      results: SolverService.solveForBoard(board)
+    });
   };
 
   private onChange = (key: number) => (
@@ -111,7 +186,7 @@ class App extends Component<{}, IAppState> {
 
     newValues[key] = event.currentTarget.value.slice(-1).toLocaleUpperCase();
 
-    this.setState({ values: newValues }, () => {
+    this.setState({ values: newValues, highlightedPath: [] }, () => {
       const allValuesSet = newValues.every(letter => letter.length > 0);
 
       if (allValuesSet) {
