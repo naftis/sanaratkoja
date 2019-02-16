@@ -2,10 +2,31 @@ import styled from '@emotion/styled/macro';
 import React, { Component } from 'react';
 import * as SolverService from './services/SolverService';
 
+const Results = styled.div`
+  padding: 2rem;
+  background: linear-gradient(to right, #5e2a62, #633979);
+  color: #fff;
+
+  b {
+    text-transform: uppercase;
+    font-weight: normal;
+    font-size: 0.8rem;
+    letter-spacing: 0.05rem;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+
+    li {
+      padding: 0.25rem 0rem;
+    }
+  }
+`;
+
 const Container = styled.div`
-  display: grid;
-  place-items: center center;
   height: 100vh;
+  display: flex;
 `;
 
 const Box = styled.div`
@@ -14,15 +35,19 @@ const Box = styled.div`
   grid-template-rows: 3rem 3rem 3rem 3rem;
   grid-gap: 0.5rem;
   padding: 1rem;
-  background: #b5d9f8;
   border-radius: 0.5rem;
 
   input {
-    border: 0;
+    border: 1px solid rgba(0, 0, 0, 0.15);
     text-align: center;
     font-size: 2rem;
-    color: #536f72;
+    color: #838383;
     border-radius: 0.25rem;
+    font-family: monospace;
+
+    &:focus {
+      outline-color: #ddd;
+    }
   }
 `;
 
@@ -44,12 +69,21 @@ class App extends Component<{}, IAppState> {
 
     return (
       <Container>
+        <Results>
+          <b>6 löydettyä sanaa</b>
+          <ul>
+            <li>kek</li>
+            <li>jees</li>
+            <li>jeesus</li>
+            <li>jeesustelija</li>
+            <li>jeesustelijoita</li>
+          </ul>
+        </Results>
         <Box>
           {this.inputRefs.map((ref, i) => (
             <input
               ref={ref}
               type="text"
-              maxLength={1}
               key={i}
               onChange={this.onChange(i)}
               value={values[i]}
@@ -60,17 +94,30 @@ class App extends Component<{}, IAppState> {
     );
   }
 
+  private solveBoard = () => {
+    const { values } = this.state;
+
+    const board = SolverService.convertFlatBoardTo2D(
+      SolverService.lowerCaseFlatBoard(values)
+    );
+    console.log(SolverService.solveForBoard(board));
+  };
+
   private onChange = (key: number) => (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    SolverService.solveForBoard([['x']]);
-
     const { values } = this.state;
     const newValues = values.slice(0);
 
-    newValues[key] = event.currentTarget.value.toLocaleUpperCase();
+    newValues[key] = event.currentTarget.value.slice(-1).toLocaleUpperCase();
 
-    this.setState({ values: newValues });
+    this.setState({ values: newValues }, () => {
+      const allValuesSet = newValues.every(letter => letter.length > 0);
+
+      if (allValuesSet) {
+        this.solveBoard();
+      }
+    });
 
     const nextInput =
       this.inputRefs[key + 1] && this.inputRefs[key + 1].current;
