@@ -1,4 +1,6 @@
 import styled from '@emotion/styled/macro';
+import chunk from 'lodash/chunk';
+import findIndex from 'lodash/findIndex';
 import groupBy from 'lodash/groupBy';
 import isEqual from 'lodash/isEqual';
 import React, { Component } from 'react';
@@ -8,6 +10,17 @@ const convertNumberToXY = (i: number) => ({
   x: i % 4,
   y: Math.floor(i / 4)
 });
+
+const convertCoordinatesToDirection = (
+  fromCoordinate: SolverService.ICoordinate,
+  toCoordinate: SolverService.ICoordinate
+) =>
+  (Math.atan2(
+    toCoordinate.y - fromCoordinate.y,
+    toCoordinate.x - fromCoordinate.x
+  ) *
+    180) /
+  Math.PI;
 
 const Results = styled.div`
   padding: 2rem;
@@ -51,11 +64,87 @@ const Box = styled.div`
   border-radius: 0.5rem;
 `;
 
+const InputContainer = styled.div`
+  position: relative;
+`;
+
+const Path = styled.div`
+  position: absolute;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+  font-size: 24px;
+  font-weight: 100;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  z-index: 1;
+`;
+
+const Up = styled(Path)`
+  top: -1rem;
+  left: 1rem;
+`;
+
+const UpRight = styled(Path)`
+  transform: rotate(45deg);
+  right: -0.4rem;
+  top: -1rem;
+`;
+
+const Right = styled(Path)`
+  transform: rotate(90deg);
+  right: -1.25rem;
+  top: 1rem;
+`;
+
+const RightDown = styled(Path)`
+  transform: rotate(135deg);
+  right: -1.25rem;
+  bottom: -0.5rem;
+`;
+
+const Down = styled(Path)`
+  transform: rotate(180deg);
+  bottom: -1rem;
+  left: 2.25rem;
+`;
+
+const DownLeft = styled(Path)`
+  transform: rotate(-135deg);
+  bottom: -1.25rem;
+  left: -0.2rem;
+`;
+
+const Left = styled(Path)`
+  transform: rotate(-90deg);
+  left: -1rem;
+  top: 2.25rem;
+`;
+
+const LeftUp = styled(Path)`
+  transform: rotate(-45deg);
+  left: -1rem;
+  top: -0.1rem;
+`;
+
+const degreesToComponent: { [key: number]: JSX.Element } = {
+  45: <RightDown>↑</RightDown>,
+  90: <Down>↑</Down>,
+  135: <DownLeft>↑</DownLeft>,
+  180: <Left>↑</Left>,
+  [-135]: <LeftUp>↑</LeftUp>,
+  [-90]: <Up>↑</Up>,
+  [-45]: <UpRight>↑</UpRight>,
+  0: <Right>↑</Right>
+};
+
 interface IInputProps {
   highlighted: boolean;
+  firstHighlighted: boolean;
 }
 
 const Input = styled.input<IInputProps>`
+  width: 100%;
+  height: 100%;
   border: 1px solid rgba(0, 0, 0, 0.15);
   text-align: center;
   font-size: 2rem;
@@ -72,6 +161,8 @@ const Input = styled.input<IInputProps>`
     `
     background: rgba(0, 0, 0, 0.1);  
   `}
+
+  ${props => props.firstHighlighted && `font-weight: bold; font-size: 2.5rem;`}
 `;
 
 interface IAppState {
@@ -133,23 +224,45 @@ class App extends Component<{}, IAppState> {
           </ul>
         </Results>
         <Box>
-          {this.inputRefs.map((ref, i) => (
-            <Input
-              ref={ref}
-              type="text"
-              key={i}
-              onChange={this.onChange(i)}
-              value={values[i]}
-              highlighted={highlightedPath.some(coordinate => {
-                const coordinates = convertNumberToXY(i);
+          {this.inputRefs.map((ref, i) => {
+            const isHighlighted = highlightedPath.find(coordinate => {
+              const coordinates = convertNumberToXY(i);
 
-                return (
-                  coordinates.x === coordinate.x &&
-                  coordinates.y === coordinate.y
-                );
-              })}
-            />
-          ))}
+              return (
+                coordinates.x === coordinate.x && coordinates.y === coordinate.y
+              );
+            });
+
+            const index = findIndex(highlightedPath, isHighlighted);
+
+            let arrow = null;
+
+            if (isHighlighted && highlightedPath.length - 1 > index) {
+              const direction = convertCoordinatesToDirection(
+                isHighlighted,
+                highlightedPath[index + 1]
+              );
+
+              arrow = degreesToComponent[direction];
+            }
+
+            return (
+              <InputContainer key={i}>
+                {arrow}
+
+                <Input
+                  ref={ref}
+                  type="text"
+                  onChange={this.onChange(i)}
+                  value={values[i]}
+                  highlighted={Boolean(isHighlighted)}
+                  firstHighlighted={
+                    Boolean(isHighlighted) && Boolean(index === 0)
+                  }
+                />
+              </InputContainer>
+            );
+          })}
         </Box>
       </Container>
     );
@@ -176,9 +289,7 @@ class App extends Component<{}, IAppState> {
   private solveBoard = () => {
     const { values } = this.state;
 
-    const board = SolverService.convertFlatBoardTo2D(
-      SolverService.lowerCaseFlatBoard(values)
-    );
+    const board = chunk(SolverService.lowerCaseFlatBoard(values), 4);
 
     this.setState({
       results: SolverService.solveForBoard(board)

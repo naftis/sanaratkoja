@@ -1,3 +1,4 @@
+import chunk from 'lodash/chunk';
 import wordlist from '../assets/words.json';
 
 type IBoard = string[][];
@@ -207,18 +208,6 @@ export function solveForBoard(board: IBoard) {
   }
 
   return foundWords;
-}
-
-export function convertFlatBoardTo2D(letters: string[]): IBoard {
-  return letters.reduce(
-    (prev, curr, index) => {
-      const chunk = Math.floor(index / 4);
-
-      prev[chunk] = [...(prev[chunk] || []), curr];
-      return prev;
-    },
-    [] as IBoard
-  );
 }
 
 export function lowerCaseFlatBoard(letters: string[]) {
