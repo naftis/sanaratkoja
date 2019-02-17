@@ -1,5 +1,6 @@
 import styled from '@emotion/styled/macro';
 import groupBy from 'lodash/groupBy';
+import isEqual from 'lodash/isEqual';
 import React, { Component } from 'react';
 import * as SolverService from './services/SolverService';
 
@@ -13,7 +14,7 @@ const Results = styled.div`
   background: linear-gradient(to right, #5e2a62, #633979);
   color: #fff;
 
-  b {
+  > b {
     text-transform: uppercase;
     font-weight: normal;
     font-size: 0.8rem;
@@ -76,14 +77,13 @@ const Input = styled.input<IInputProps>`
 interface IAppState {
   values: string[];
   results: SolverService.IResult[];
-  openedWords: string[];
+  openedWord?: string;
   highlightedPath: SolverService.ICoordinate[];
 }
 
 class App extends Component<{}, IAppState> {
   public state: IAppState = {
     highlightedPath: [],
-    openedWords: [],
     results: [],
     values: [...Array(4 * 4)].map(() => '')
   };
@@ -93,7 +93,7 @@ class App extends Component<{}, IAppState> {
   ].map(() => React.createRef());
 
   public render() {
-    const { highlightedPath, openedWords, results, values } = this.state;
+    const { highlightedPath, openedWord, results, values } = this.state;
 
     const groupedResults = groupBy(results, 'word');
     const words = Object.keys(groupedResults).sort((a, b) => {
@@ -109,17 +109,24 @@ class App extends Component<{}, IAppState> {
               <li key={`${i}_${word}`} onClick={this.toggleWord(word)}>
                 {word}
 
-                {openedWords.includes(word) && (
-                  <ul>
-                    {groupedResults[word].map((result, path) => (
-                      <li
-                        key={`${i}_${word}_${path}`}
-                        onClick={this.highlightPath(result.path)}
-                      >
-                        {result.word}
-                      </li>
-                    ))}
-                  </ul>
+                {openedWord === word && (
+                  <>
+                    &nbsp;⇲
+                    <ul>
+                      {groupedResults[word].map((result, path) => (
+                        <li
+                          key={`${i}_${word}_${path}`}
+                          onClick={this.highlightPath(result.path)}
+                        >
+                          {isEqual(result.path, highlightedPath) ? (
+                            <b>{result.word}</b>
+                          ) : (
+                            result.word
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
               </li>
             ))}
@@ -149,20 +156,20 @@ class App extends Component<{}, IAppState> {
   }
 
   private toggleWord = (word: string) => () => {
-    const { openedWords } = this.state;
+    const { openedWord } = this.state;
 
-    if (openedWords.includes(word)) {
-      this.setState({
-        openedWords: openedWords.filter(openedWord => openedWord !== word)
-      });
+    if (openedWord === word) {
+      this.setState({ highlightedPath: [], openedWord: undefined });
     } else {
-      this.setState({
-        openedWords: [...openedWords, word]
-      });
+      this.setState({ highlightedPath: [], openedWord: word });
     }
   };
 
-  private highlightPath = (path: SolverService.ICoordinate[]) => () => {
+  private highlightPath = (path: SolverService.ICoordinate[]) => (
+    event: React.MouseEvent<HTMLLIElement, MouseEvent>
+  ) => {
+    event.stopPropagation();
+
     this.setState({ highlightedPath: path });
   };
 
@@ -185,6 +192,10 @@ class App extends Component<{}, IAppState> {
     const newValues = values.slice(0);
 
     newValues[key] = event.currentTarget.value.slice(-1).toLocaleUpperCase();
+
+    if (!/^[A-ZÄÖÅ]$/.test(newValues[key])) {
+      return;
+    }
 
     this.setState({ values: newValues, highlightedPath: [] }, () => {
       const allValuesSet = newValues.every(letter => letter.length > 0);
